@@ -1,0 +1,65 @@
+---
+- name: Install Nexus
+  hosts: group_name
+  become: yes
+  tasks:
+    - name: yum update
+      yum:
+        name: '*'
+        state: latest
+
+    - name: Download Nexus
+      get_url:
+        url: https://download.sonatype.com/nexus/3/nexus-3.70.1-02-java11-unix.tar.gz
+        dest: /opt/nexus-3.70.1-02-java11-unix.tar.gz
+
+    - name: Extract Nexus
+      unarchive:
+        src: /opt/nexus-3.70.1-02-java11-unix.tar.gz
+        dest: /opt/
+        remote_src: yes
+    - name: Create Nexus user
+      user:
+        name: nexus
+        shell: /bin/bash
+   
+    - name: Set Nexus permission
+      file:
+        path: /opt/nexus
+        owner: nexus
+        group: nexus
+        recurse: yes
+    - name: Set Nexus permission
+      file:
+        path: /opt/sonatype-work
+        owner: nexus
+        group: nexus
+        recurse: yes
+
+    - name: Create Nexus startup script
+      copy:
+        dest: /etc/systemd/system/nexus.service
+        content: |
+          [Unit]
+          Description=Nexus Repository Manager
+          After=network.target
+
+          [Service]
+          Type=forking
+          User=nexus
+          ExecStart=/opt/nexus-3.70.1-02/bin/nexus start
+          ExecStop=/opt/nexus-3.70.1-02/bin/nexus stop
+          Restart=on-failure
+    
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Start Nexus service
+      systemd:
+        name: nexus
+        state: started
+        enabled: yes

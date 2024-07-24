@@ -1,0 +1,77 @@
+---
+- name: Install and Configure Node Exporter
+  hosts: group_name  # Replace with your actual group name from /etc/ansible/hosts
+  become: yes  # Run tasks with root privileges
+
+  vars:
+    node_exporter_version: "1.2.2"  # Define Node Exporter version here
+
+  tasks:
+    - name: Create Node Exporter directory
+      ansible.builtin.file:
+        path: /opt/node_exporter
+        state: directory
+        mode: '0755'
+
+    - name: Download Node Exporter binary
+      ansible.builtin.get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: "/opt/node_exporter/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        mode: '0644'
+
+    - name: Extract Node Exporter
+      ansible.builtin.unarchive:
+        src: "/opt/node_exporter/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: "/opt/node_exporter/"
+        remote_src: yes
+        creates: "/opt/node_exporter/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+
+    - name: Create symlink
+      ansible.builtin.file:
+        src: "/opt/node_exporter/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+        dest: "/usr/local/bin/node_exporter"
+        state: link
+
+    - name: Add node_exporter user
+      ansible.builtin.user:
+        name: node_exporter
+        shell: /bin/false
+        system: yes
+
+    - name: Set ownership and permissions
+      ansible.builtin.file:
+        path: "/usr/local/bin/node_exporter"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Configure systemd service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Node Exporter
+          After=network.target
+
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/node_exporter.service
+      notify:
+        - Reload systemd
+
+    - name: Start Node Exporter service
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+

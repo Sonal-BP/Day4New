@@ -1,0 +1,55 @@
+---
+- name: Install and Configure Jenkins
+  hosts: group_name
+  become: yes
+  become_user: root
+
+  tasks:
+    - name: Update yum packages
+      yum:
+        name: '*'
+        state: latest
+
+    - name: Download Jenkins repository file
+      get_url:
+        url: https://pkg.jenkins.io/redhat/jenkins.repo
+        dest: /etc/yum.repos.d/jenkins.repo
+        mode: 0644
+
+    - name: Import Jenkins repository key
+      rpm_key:
+        state: present
+        key: https://pkg.jenkins.io/redhat/jenkins.io.key
+
+    - name: Install Java 11 (Amazon Corretto)
+      yum:
+        name: java-11-amazon-corretto
+        state: present
+
+    - name: Install Jenkins package
+      yum:
+        name: jenkins
+        state: present
+      register: jenkins_install_result
+      ignore_errors: true
+
+    - name: Start Jenkins service
+      systemd:
+        name: jenkins
+        state: started
+        enabled: yes
+      when: jenkins_install_result is success
+
+    - name: Check Jenkins service status
+      systemd:
+        name: jenkins
+        state: started
+        enabled: yes
+      register: jenkins_status
+      ignore_errors: true
+
+    - name: Debug Jenkins service status
+      debug:
+        msg: "Jenkins service status: {{ jenkins_status }}"
+      when: jenkins_status is failed
+
